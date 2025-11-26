@@ -183,6 +183,7 @@ DeviceLogonEvents
 | where DeviceName == "azuki-sl"
 | where AccountName == "kenji.sato"
 
+```
 <img width="1088" height="658" alt="image" src="https://github.com/user-attachments/assets/9a6e3725-190f-4037-aa65-49133307a46b" />
 
 **Query 2 - Malicious Execution / Initial Command and Control:**
@@ -193,6 +194,7 @@ DeviceNetworkEvents
 | where ActionType == "ConnectionSuccess"
 | where RemoteIPType == "Public" or "IsExternal" == true
 | where InitiatingProcessCommandLine contains "powershell.exe"
+```
 **Results: C2 IP: 78.141.196.6
 
 <img width="1140" height="738" alt="image" src="https://github.com/user-attachments/assets/51ad81a0-fe57-4eb3-974c-c07d47cf1dfa" />
