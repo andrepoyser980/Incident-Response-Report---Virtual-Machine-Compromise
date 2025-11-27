@@ -198,7 +198,8 @@ DeviceNetworkEvents
 **Results:** C2 IP: 78.141.196.6
 
 <img width="1140" height="500" alt="image" src="https://github.com/user-attachments/assets/51ad81a0-fe57-4eb3-974c-c07d47cf1dfa" />
-**Query 3 - Internal Reconnaissance:**
+
+**Query 3 - Internal Reconnaissance:
 ```sql
 DeviceProcessEvents
 | where Timestamp between (datetime(2025-11-19) .. datetime(2025-11-20))
